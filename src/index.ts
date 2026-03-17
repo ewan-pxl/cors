@@ -1,13 +1,4 @@
-export interface Env {
-  // Example binding to KV. Learn more at https://developers.cloudflare.com/workers/runtime-apis/kv/
-  ANALYTICS: KVNamespace;
-  //
-  // Example binding to Durable Object. Learn more at https://developers.cloudflare.com/workers/runtime-apis/durable-objects/
-  // MY_DURABLE_OBJECT: DurableObjectNamespace;
-  //
-  // Example binding to R2. Learn more at https://developers.cloudflare.com/workers/runtime-apis/r2/
-  // MY_BUCKET: R2Bucket;
-}
+export interface Env {}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -46,10 +37,8 @@ export default {
         url == "favicon.ico" ||
         url == "robots.txt"
       ) {
-        const invalid = !(request.method == "OPTIONS" || url.length === 0);
-        response.body = await getHelp(env, new URL(request.url));
-        response.contentType = "text/html";
-        response.status = invalid ? 400 : 200;
+        response.body = null;
+        response.status = 204;
       } else {
         url = fixUrl(url);
 
@@ -68,6 +57,8 @@ export default {
             fetchRequest.headers.set(key, value);
           }
         }
+
+        fetchRequest.headers.delete("accept-encoding");
 
         if (["POST", "PUT", "PATCH", "DELETE"].indexOf(request.method) >= 0) {
           const ct = (reqHeaders.get("content-type") || "").toLowerCase();
@@ -90,8 +81,6 @@ export default {
         response.status = fetchResponse.status;
         response.text = fetchResponse.statusText;
         response.body = fetchResponse.body;
-
-        await increment(env);
       }
     } catch (err) {
       if (err instanceof Error) {
@@ -124,60 +113,4 @@ function fixUrl(url: string) {
   } else {
     return "http://" + url;
   }
-}
-
-async function getHelp(env: Env, url: URL) {
-  return `<!DOCTYPE html>
-  <html>
-	<head>
-	  <title>Streetwriters CORS Proxy</title>
-	  <style>
-		body {
-		  font-family: "Courier New", Courier, monospace;
-		}
-	  </style>
-	</head>
-	<body>
-	  <p>Welcome to Streetwriters CORS Proxy!</p>
-	  <p>
-		You can use this proxy to bypass CORS in the browser. It is recommended
-		that you deploy your own instance both for privacy reasons and to reduce
-		the load on a single instance.
-	  </p>
-	  <p>USAGE:</p>
-	  <p>
-		&nbsp;&nbsp;&nbsp;&nbsp;${url.protocol}//${url.hostname}/&lt;url-to-resource&gt;
-	  </p>
-	  <p>EXAMPLES:</p>
-	  <p>&nbsp;&nbsp;&nbsp;&nbsp;${url.protocol}//${
-    url.hostname
-  }/https://api.github.com/repos/streetwriters/notesnook/releases/tags/v2.2.4</p>
-	  <p>&nbsp;&nbsp;&nbsp;&nbsp;${url.protocol}//${
-    url.hostname
-  }/https://api.github.com/repos/streetwriters/notesnook/releases</p>
-	  <p>
-		<a
-		  href="https://deploy.workers.cloudflare.com/?url=https://github.com/streetwriters/cors"
-		  >Deploy your own!</a
-		>
-		| <a href="https://github.com/streetwriters/cors">GitHub repository</a>
-	  </p>
-	  <hr/>
-	  <p>
-		Bypassed ${await totalRequests(env)} requests!
-	  </p>
-	</body>
-  </html>
-  `;
-}
-
-async function increment(env: Env) {
-  if (!env.ANALYTICS) return;
-  let count = parseInt((await env.ANALYTICS.get("total_requests")) || "0");
-  await env.ANALYTICS.put("total_requests", (++count).toFixed());
-}
-
-async function totalRequests(env: Env) {
-  if (!env.ANALYTICS) return 0;
-  return await env.ANALYTICS.get("total_requests");
 }
